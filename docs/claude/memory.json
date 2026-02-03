@@ -1,0 +1,109 @@
+{
+  "project": {
+    "name": "KnewSearch AEO Visibility Platform",
+    "domain": "KnewSearch.com",
+    "mission": "Measure and improve brand visibility in AI generated search answers by monitoring prompts, generating answers via Gemini, extracting citations and brand mentions, storing results in BigQuery, scoring visibility, detecting change over time, and producing dashboards and weekly summaries.",
+    "mvp_scope": [
+      "Prompt library seeded from config plus CRUD API",
+      "Daily scheduled runs using Cloud Scheduler plus Pub Sub",
+      "Gemini answer generation with retries and rate limiting",
+      "Parsing for urls, domains, brand mentions, named entities",
+      "Diff detection against prior run",
+      "Embeddings using Vertex AI and vector storage in BigQuery",
+      "Visibility scoring and trend tracking",
+      "Minimal Next.js dashboard with read only views",
+      "Weekly summary generation using Gemini written to BigQuery and email ready text"
+    ],
+    "non_goals": [
+      "No PII collection",
+      "No CRM integrations in MVP",
+      "No multi tenant enterprise RBAC beyond basic auth",
+      "No automatic content publishing in MVP"
+    ]
+  },
+  "tech_stack": {
+    "cloud": "Google Cloud",
+    "services": {
+      "compute": "Cloud Run",
+      "scheduler": "Cloud Scheduler",
+      "queue": "Pub Sub",
+      "storage": "BigQuery",
+      "ai_generation": "Gemini API",
+      "ai_embeddings": "Vertex AI",
+      "secrets": "Secret Manager",
+      "logging": "Cloud Logging"
+    },
+    "backend": {
+      "language": "Python",
+      "framework": "FastAPI",
+      "style": "small services, async jobs, structured json logs"
+    },
+    "frontend": {
+      "framework": "Next.js",
+      "scope": "minimal dashboard, read only, simple charts"
+    },
+    "infra": {
+      "iac": "Terraform preferred",
+      "principles": [
+        "least privilege IAM",
+        "idempotent jobs",
+        "retry safe handlers",
+        "cost controls and quotas"
+      ]
+    }
+  },
+  "data_model": {
+    "bigquery_datasets": [
+      "knewsearch_aeo"
+    ],
+    "core_tables": [
+      "prompts",
+      "answer_runs",
+      "ai_answers",
+      "citations",
+      "entities",
+      "embeddings",
+      "visibility_scores",
+      "weekly_summaries"
+    ],
+    "partitioning": "Partition ai_answers, citations, visibility_scores, weekly_summaries by event_date",
+    "clustering": "Cluster by brand, prompt_id, domain where appropriate"
+  },
+  "service_contracts": {
+    "services": [
+      "prompt_runner",
+      "answer_generator",
+      "parser",
+      "scoring",
+      "weekly_summary",
+      "api_gateway"
+    ],
+    "job_flow": "Cloud Scheduler triggers prompt_runner daily. prompt_runner publishes prompt batch messages to Pub Sub. answer_generator consumes, calls Gemini, stores raw answers. parser consumes answer events, extracts citations and mentions. scoring runs aggregation queries into visibility_scores. weekly_summary runs weekly and writes executive summary text."
+  },
+  "coding_conventions": {
+    "python": [
+      "type hints required",
+      "pydantic models for contracts",
+      "structured logging json with request_id and run_id",
+      "centralized config via environment variables",
+      "retry with exponential backoff for external calls"
+    ],
+    "api": [
+      "OpenAPI docs enabled",
+      "auth via simple API key for MVP",
+      "consistent error shapes",
+      "idempotency keys for job endpoints"
+    ],
+    "git": [
+      "conventional commits",
+      "semantic versioning tags",
+      "feature branches per service"
+    ]
+  },
+  "acceptance_criteria": [
+    "Daily run completes with stored answers, citations, and scores",
+    "Dashboard shows brand trend and top citations",
+    "Weekly summary is generated and stored",
+    "End to end smoke test script passes from fresh project"
+  ]
+}
