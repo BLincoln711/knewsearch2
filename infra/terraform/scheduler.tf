@@ -38,11 +38,6 @@ resource "google_cloud_scheduler_job" "daily_prompt_run" {
     }
   }
 
-  labels = {
-    environment = var.environment
-    job_type    = "daily-run"
-  }
-
   depends_on = [
     google_cloud_run_v2_service.prompt_runner,
     google_cloud_run_v2_service_iam_member.prompt_runner_scheduler_invoker
@@ -88,10 +83,5 @@ resource "google_cloud_scheduler_job" "weekly_summary_run" {
       service_account_email = google_service_account.scheduler_invoker.email
       audience              = "https://weekly-summary-placeholder.${var.region}.run.app"
     }
-  }
-
-  labels = {
-    environment = var.environment
-    job_type    = "weekly-summary"
   }
 }
