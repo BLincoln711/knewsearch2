@@ -3,11 +3,14 @@ FROM python:3.12-slim
 WORKDIR /app
 
 # Install dependencies
-COPY requirements.txt .
+COPY services/scoring/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
-COPY main.py .
+COPY services/scoring/main.py .
+
+# Copy SQL templates
+COPY sql/scoring/ /app/sql/scoring/
 
 # Run as non-root user
 RUN useradd -m -u 1000 appuser
