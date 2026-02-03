@@ -440,6 +440,7 @@ def write_citations_to_bigquery(citations: list[CitationRecord]) -> None:
             "anchor_text": c.anchor_text,
             "is_brand_owned": c.is_brand_owned,
             "is_competitor": c.is_competitor,
+            "created_at": datetime.now(timezone.utc).isoformat(),
             "metadata": None,
         }
         for c in citations
@@ -474,6 +475,7 @@ def write_entities_to_bigquery(entities: list[EntityRecord]) -> None:
             "is_target_brand": e.is_target_brand,
             "is_competitor": e.is_competitor,
             "sentiment": e.sentiment,
+            "created_at": datetime.now(timezone.utc).isoformat(),
             "metadata": None,
         }
         for e in entities

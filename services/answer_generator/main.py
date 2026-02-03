@@ -261,6 +261,7 @@ def write_to_bigquery(answer: AnswerGeneratedMessage) -> None:
         "token_count_prompt": answer.token_count.prompt if answer.token_count else None,
         "token_count_response": answer.token_count.response if answer.token_count else None,
         "latency_ms": answer.latency_ms,
+        "created_at": datetime.now(timezone.utc).isoformat(),
         "metadata": None,
     }
 
