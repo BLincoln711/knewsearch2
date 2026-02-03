@@ -204,7 +204,8 @@ WHEN NOT MATCHED THEN INSERT (
   avg_citation_position,
   score_change,
   score_change_pct,
-  metadata
+  metadata,
+  created_at
 )
 VALUES (
   source.score_id,
@@ -224,5 +225,6 @@ VALUES (
   source.avg_citation_position,
   source.score_change,
   source.score_change_pct,
-  source.metadata
+  source.metadata,
+  CURRENT_TIMESTAMP()
 );
