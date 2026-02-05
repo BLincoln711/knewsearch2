@@ -6,11 +6,11 @@ interface KpiTileProps {
 
 export function KpiTile({ label, value, subtitle }: KpiTileProps) {
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-5">
-      <p className="text-sm font-medium text-gray-500">{label}</p>
-      <p className="mt-1 text-2xl font-semibold text-gray-900">{value}</p>
+    <div className="rounded-2xl bg-surface-0 p-6 shadow-card transition-shadow hover:shadow-card-hover">
+      <p className="text-caption font-medium text-charcoal-muted">{label}</p>
+      <p className="mt-2 text-heading-sm tracking-tight text-charcoal">{value}</p>
       {subtitle && (
-        <p className="mt-1 text-xs text-gray-400">{subtitle}</p>
+        <p className="mt-1 text-caption text-charcoal-faint">{subtitle}</p>
       )}
     </div>
   );

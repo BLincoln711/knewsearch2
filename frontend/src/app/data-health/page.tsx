@@ -67,51 +67,51 @@ export default function DataHealthPage() {
   if (brandLoading || loading) return <LoadingSpinner />;
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-semibold">Data Health</h1>
+    <div className="space-y-8">
+      <h1 className="text-heading tracking-tight text-charcoal">Data Health</h1>
 
       {health.apiError && <ErrorBanner message={health.apiError} />}
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div className="rounded-lg border border-gray-200 bg-white p-5">
-          <p className="text-sm font-medium text-gray-500">API Status</p>
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
+        <div className="rounded-2xl bg-surface-0 p-6 shadow-card">
+          <p className="text-caption font-medium text-charcoal-muted">API Status</p>
           {health.api ? (
-            <div className="mt-2 flex items-center gap-2">
+            <div className="mt-3 flex items-center gap-2">
               <span
                 className={`inline-block h-2.5 w-2.5 rounded-full ${
                   health.api.status === "healthy"
-                    ? "bg-green-500"
+                    ? "bg-positive-500"
                     : "bg-yellow-500"
                 }`}
               />
-              <span className="text-lg font-medium text-gray-900 capitalize">
+              <span className="text-body-lg font-medium text-charcoal capitalize">
                 {health.api.status}
               </span>
             </div>
           ) : (
-            <p className="mt-2 text-lg font-medium text-red-600">
+            <p className="mt-3 text-body-lg font-medium text-red-600">
               Unreachable
             </p>
           )}
           {health.api && (
-            <p className="mt-1 text-xs text-gray-400">
+            <p className="mt-1 text-caption text-charcoal-faint">
               Service: {health.api.service}
             </p>
           )}
         </div>
 
-        <div className="rounded-lg border border-gray-200 bg-white p-5">
-          <p className="text-sm font-medium text-gray-500">Last Score Date</p>
-          <p className="mt-2 text-lg font-medium text-gray-900">
+        <div className="rounded-2xl bg-surface-0 p-6 shadow-card">
+          <p className="text-caption font-medium text-charcoal-muted">Last Score Date</p>
+          <p className="mt-3 text-body-lg font-medium text-charcoal">
             {health.lastScoreDate || "No scores recorded"}
           </p>
         </div>
 
-        <div className="rounded-lg border border-gray-200 bg-white p-5">
-          <p className="text-sm font-medium text-gray-500">
+        <div className="rounded-2xl bg-surface-0 p-6 shadow-card">
+          <p className="text-caption font-medium text-charcoal-muted">
             Last Weekly Summary
           </p>
-          <p className="mt-2 text-lg font-medium text-gray-900">
+          <p className="mt-3 text-body-lg font-medium text-charcoal">
             {health.lastSummaryDate
               ? new Date(health.lastSummaryDate).toLocaleString()
               : "No summary generated"}

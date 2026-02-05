@@ -9,6 +9,8 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
+  Area,
+  AreaChart,
 } from "recharts";
 import { useBrand } from "@/components/brand-context";
 import { apiFetch, OverviewResponse, OverviewDay } from "@/lib/api";
@@ -71,11 +73,11 @@ export default function OverviewPage() {
   const kpis = computeKpis(data);
 
   return (
-    <div className="space-y-8">
-      <h1 className="text-2xl font-semibold">Overview</h1>
+    <div className="space-y-10">
+      <h1 className="text-heading tracking-tight text-charcoal">Overview</h1>
 
       {kpis && (
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-5 sm:grid-cols-4">
           <KpiTile label="Latest Score" value={kpis.latestScore} />
           <KpiTile label="7 Day Average" value={kpis.avg7d} />
           <KpiTile label="Prompt Count" value={kpis.promptCount} />
@@ -83,35 +85,54 @@ export default function OverviewPage() {
         </div>
       )}
 
-      <div className="rounded-lg border border-gray-200 bg-white p-6">
-        <h2 className="mb-4 text-sm font-medium text-gray-500">
+      <div className="rounded-2xl bg-surface-0 p-6 shadow-card">
+        <h2 className="mb-6 text-body font-semibold text-charcoal">
           Average Score Over Time
         </h2>
         <ResponsiveContainer width="100%" height={320}>
-          <LineChart data={data}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+          <AreaChart data={data}>
+            <defs>
+              <linearGradient id="scoreGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#6366f1" stopOpacity={0.12} />
+                <stop offset="100%" stopColor="#6366f1" stopOpacity={0.01} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" strokeOpacity={0.6} />
             <XAxis
               dataKey="event_date"
-              tick={{ fontSize: 12 }}
-              stroke="#9ca3af"
+              tick={{ fontSize: 12, fill: "#9ca3af" }}
+              stroke="#e5e7eb"
+              tickLine={false}
+              axisLine={false}
             />
-            <YAxis tick={{ fontSize: 12 }} stroke="#9ca3af" />
+            <YAxis
+              tick={{ fontSize: 12, fill: "#9ca3af" }}
+              stroke="#e5e7eb"
+              tickLine={false}
+              axisLine={false}
+            />
             <Tooltip
               contentStyle={{
                 fontSize: 13,
-                borderRadius: 8,
-                border: "1px solid #e5e7eb",
+                borderRadius: 12,
+                border: "none",
+                boxShadow: "0 8px 16px -4px rgb(0 0 0 / 0.07), 0 2px 6px -2px rgb(0 0 0 / 0.04)",
+                backgroundColor: "#ffffff",
+                padding: "10px 14px",
               }}
+              labelStyle={{ color: "#6b7280", fontWeight: 500, marginBottom: 4 }}
+              itemStyle={{ color: "#1a1a2e" }}
             />
-            <Line
+            <Area
               type="monotone"
               dataKey="average_score"
-              stroke="#2563eb"
+              stroke="#6366f1"
               strokeWidth={2}
-              dot={{ r: 3 }}
-              activeDot={{ r: 5 }}
+              fill="url(#scoreGradient)"
+              dot={{ r: 3, fill: "#6366f1", strokeWidth: 0 }}
+              activeDot={{ r: 5, fill: "#6366f1", strokeWidth: 2, stroke: "#ffffff" }}
             />
-          </LineChart>
+          </AreaChart>
         </ResponsiveContainer>
       </div>
     </div>
