@@ -2,13 +2,15 @@
 
 import { useEffect, useState } from "react";
 import { useBrand } from "@/components/brand-context";
-import { apiFetch, WeeklySummaryResponse } from "@/lib/api";
+import { WeeklySummaryResponse } from "@/lib/api";
+import { useAuthedFetch } from "@/lib/use-authed-fetch";
 import { LoadingSpinner } from "@/components/loading-spinner";
 import { ErrorBanner } from "@/components/error-banner";
 import { EmptyState } from "@/components/empty-state";
 
 export default function WeeklySummaryPage() {
   const { selectedBrand, loading: brandLoading } = useBrand();
+  const authedFetch = useAuthedFetch();
   const [summary, setSummary] = useState<WeeklySummaryResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -21,7 +23,7 @@ export default function WeeklySummaryPage() {
     setNotFound(false);
     setSummary(null);
 
-    apiFetch<WeeklySummaryResponse | { detail: string }>("/weekly-summary", {
+    authedFetch<WeeklySummaryResponse | { detail: string }>("/weekly-summary", {
       brand: selectedBrand,
     })
       .then((data) => {
@@ -40,7 +42,7 @@ export default function WeeklySummaryPage() {
         }
       })
       .finally(() => setLoading(false));
-  }, [selectedBrand]);
+  }, [selectedBrand, authedFetch]);
 
   if (brandLoading || loading) return <LoadingSpinner />;
   if (error) return <ErrorBanner message={error} />;

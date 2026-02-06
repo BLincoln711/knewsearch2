@@ -8,6 +8,7 @@ import {
   ReactNode,
 } from "react";
 import { apiFetch, BrandsResponse } from "@/lib/api";
+import { useAuth } from "./auth-context";
 
 interface BrandContextValue {
   brands: string[];
@@ -30,9 +31,17 @@ export function BrandProvider({ children }: { children: ReactNode }) {
   const [selectedBrand, setSelectedBrand] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { user, getIdToken } = useAuth();
 
   useEffect(() => {
-    apiFetch<BrandsResponse>("/brands")
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    getIdToken()
+      .then((token) => apiFetch<BrandsResponse>("/brands", undefined, token ?? undefined))
       .then((res) => {
         setBrands(res.brands);
         if (res.brands.length > 0) {
@@ -41,7 +50,7 @@ export function BrandProvider({ children }: { children: ReactNode }) {
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
-  }, []);
+  }, [user, getIdToken]);
 
   return (
     <BrandContext.Provider

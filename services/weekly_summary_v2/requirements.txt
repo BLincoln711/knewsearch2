@@ -4,3 +4,5 @@ pydantic>=2.5.0,<3.0.0
 google-cloud-bigquery>=3.17.0,<4.0.0
 google-generativeai>=0.4.0,<1.0.0
 httpx>=0.26.0,<1.0.0
+sendgrid>=6.11.0,<7.0.0
+google-cloud-firestore>=2.14.0,<3.0.0

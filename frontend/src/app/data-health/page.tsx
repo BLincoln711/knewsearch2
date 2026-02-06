@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useBrand } from "@/components/brand-context";
-import { apiFetch, HealthResponse, OverviewResponse } from "@/lib/api";
+import { HealthResponse, OverviewResponse } from "@/lib/api";
+import { useAuthedFetch } from "@/lib/use-authed-fetch";
 import { LoadingSpinner } from "@/components/loading-spinner";
 import { ErrorBanner } from "@/components/error-banner";
 
@@ -15,6 +16,7 @@ interface HealthState {
 
 export default function DataHealthPage() {
   const { selectedBrand, loading: brandLoading } = useBrand();
+  const authedFetch = useAuthedFetch();
   const [health, setHealth] = useState<HealthState>({
     api: null,
     lastScoreDate: null,
@@ -26,12 +28,12 @@ export default function DataHealthPage() {
   useEffect(() => {
     setLoading(true);
 
-    const fetchHealth = apiFetch<HealthResponse>("/health")
+    const fetchHealth = authedFetch<HealthResponse>("/health")
       .then((res) => res)
       .catch((err) => ({ error: err.message }));
 
     const fetchLastScore = selectedBrand
-      ? apiFetch<OverviewResponse>("/overview", { brand: selectedBrand })
+      ? authedFetch<OverviewResponse>("/overview", { brand: selectedBrand })
           .then((res) =>
             res.data.length > 0
               ? res.data[res.data.length - 1].event_date
@@ -41,7 +43,7 @@ export default function DataHealthPage() {
       : Promise.resolve(null);
 
     const fetchLastSummary = selectedBrand
-      ? apiFetch<{ created_at?: string; detail?: string }>("/weekly-summary", {
+      ? authedFetch<{ created_at?: string; detail?: string }>("/weekly-summary", {
           brand: selectedBrand,
         })
           .then((data) => (data.detail ? null : data.created_at || null))
@@ -62,7 +64,7 @@ export default function DataHealthPage() {
         setLoading(false);
       }
     );
-  }, [selectedBrand]);
+  }, [selectedBrand, authedFetch]);
 
   if (brandLoading || loading) return <LoadingSpinner />;
 

@@ -2,7 +2,8 @@ const API_KEY = process.env.NEXT_PUBLIC_READ_API_KEY || "";
 
 export async function apiFetch<T>(
   path: string,
-  params?: Record<string, string>
+  params?: Record<string, string>,
+  token?: string
 ): Promise<T> {
   const url = new URL(`/proxy${path}`, window.location.origin);
   if (params) {
@@ -15,12 +16,48 @@ export async function apiFetch<T>(
   if (API_KEY) {
     headers["x-api-key"] = API_KEY;
   }
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
 
   const res = await fetch(url.toString(), { headers });
 
   if (!res.ok) {
     const body = await res.text();
     throw new Error(`API ${res.status}: ${body}`);
+  }
+
+  return res.json();
+}
+
+export async function apiMutate<T>(
+  path: string,
+  method: "POST" | "PUT" | "DELETE",
+  body?: unknown,
+  token?: string
+): Promise<T> {
+  const url = new URL(`/proxy${path}`, window.location.origin);
+
+  const headers: Record<string, string> = {
+    Accept: "application/json",
+    "Content-Type": "application/json",
+  };
+  if (API_KEY) {
+    headers["x-api-key"] = API_KEY;
+  }
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+
+  const res = await fetch(url.toString(), {
+    method,
+    headers,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`API ${res.status}: ${text}`);
   }
 
   return res.json();
@@ -72,4 +109,48 @@ export interface WeeklySummaryResponse {
 export interface HealthResponse {
   status: string;
   service: string;
+}
+
+// --- Admin types ---
+
+export interface AdminClient {
+  client_id: string;
+  name: string;
+  status: string;
+  brands: string[];
+  subscription_status: string | null;
+  created_at: string;
+  member_count?: number;
+}
+
+export interface AdminClientList {
+  clients: AdminClient[];
+  total: number;
+}
+
+export interface AdminMessage {
+  message: string;
+  client_id?: string;
+  uid?: string;
+}
+
+// --- Billing types ---
+
+export interface BillingInfo {
+  client_id: string;
+  stripe_customer_id: string | null;
+  stripe_subscription_id: string | null;
+  subscription_status: string | null;
+  current_period_end: string | null;
+  cancel_at_period_end: boolean;
+  plan_name: string | null;
+}
+
+export interface PortalSession {
+  url: string;
+}
+
+export interface CheckoutSession {
+  url: string;
+  session_id: string;
 }

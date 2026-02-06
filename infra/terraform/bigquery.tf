@@ -719,6 +719,44 @@ resource "google_bigquery_table" "visibility_scores" {
   }
 }
 
+# client_brands - Maps clients (orgs) to their authorized brands
+resource "google_bigquery_table" "client_brands" {
+  dataset_id          = google_bigquery_dataset.knewsearch.dataset_id
+  table_id            = "client_brands"
+  deletion_protection = var.environment == "prod" ? true : false
+
+  schema = jsonencode([
+    {
+      name        = "client_id"
+      type        = "STRING"
+      mode        = "REQUIRED"
+      description = "Maps to Firestore /clients/{clientId}"
+    },
+    {
+      name        = "brand"
+      type        = "STRING"
+      mode        = "REQUIRED"
+      description = "Brand name matching prompts.brand"
+    },
+    {
+      name        = "is_active"
+      type        = "BOOL"
+      mode        = "NULLABLE"
+      description = "Whether this mapping is active"
+    },
+    {
+      name        = "added_at"
+      type        = "TIMESTAMP"
+      mode        = "REQUIRED"
+      description = "When this brand was assigned to client"
+    }
+  ])
+
+  labels = {
+    environment = var.environment
+  }
+}
+
 # weekly_summaries - AI-generated weekly executive summaries (partitioned)
 resource "google_bigquery_table" "weekly_summaries" {
   dataset_id          = google_bigquery_dataset.knewsearch.dataset_id

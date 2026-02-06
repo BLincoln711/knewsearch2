@@ -13,11 +13,13 @@ import {
   AreaChart,
 } from "recharts";
 import { useBrand } from "@/components/brand-context";
-import { apiFetch, OverviewResponse, OverviewDay } from "@/lib/api";
+import { OverviewResponse, OverviewDay } from "@/lib/api";
+import { useAuthedFetch } from "@/lib/use-authed-fetch";
 import { KpiTile } from "@/components/kpi-tile";
 import { LoadingSpinner } from "@/components/loading-spinner";
 import { ErrorBanner } from "@/components/error-banner";
 import { EmptyState } from "@/components/empty-state";
+import { ExportButton } from "@/components/export-button";
 
 function computeKpis(data: OverviewDay[]) {
   if (data.length === 0) return null;
@@ -44,6 +46,7 @@ function computeKpis(data: OverviewDay[]) {
 
 export default function OverviewPage() {
   const { selectedBrand, loading: brandLoading } = useBrand();
+  const authedFetch = useAuthedFetch();
   const [data, setData] = useState<OverviewDay[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -52,11 +55,11 @@ export default function OverviewPage() {
     if (!selectedBrand) return;
     setLoading(true);
     setError(null);
-    apiFetch<OverviewResponse>("/overview", { brand: selectedBrand })
+    authedFetch<OverviewResponse>("/overview", { brand: selectedBrand })
       .then((res) => setData(res.data))
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
-  }, [selectedBrand]);
+  }, [selectedBrand, authedFetch]);
 
   if (brandLoading || loading) return <LoadingSpinner />;
   if (error) return <ErrorBanner message={error} />;
@@ -74,7 +77,16 @@ export default function OverviewPage() {
 
   return (
     <div className="space-y-10">
-      <h1 className="text-heading tracking-tight text-charcoal">Overview</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-heading tracking-tight text-charcoal">Overview</h1>
+        {selectedBrand && (
+          <ExportButton
+            path="/overview"
+            params={{ brand: selectedBrand }}
+            filename={`${selectedBrand}_overview.csv`}
+          />
+        )}
+      </div>
 
       {kpis && (
         <div className="grid grid-cols-2 gap-5 sm:grid-cols-4">

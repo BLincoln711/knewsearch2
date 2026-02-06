@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { AuthProvider } from "@/components/auth-context";
 import { BrandProvider } from "@/components/brand-context";
 import { Nav } from "@/components/nav";
 
@@ -16,12 +17,14 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <BrandProvider>
-          <Nav />
-          <main className="section-container py-10">
-            {children}
-          </main>
-        </BrandProvider>
+        <AuthProvider>
+          <BrandProvider>
+            <Nav />
+            <main className="section-container py-10">
+              {children}
+            </main>
+          </BrandProvider>
+        </AuthProvider>
       </body>
     </html>
   );

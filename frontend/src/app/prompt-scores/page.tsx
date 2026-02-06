@@ -2,10 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { useBrand } from "@/components/brand-context";
-import { apiFetch, PromptScoresResponse, PromptScore } from "@/lib/api";
+import { PromptScoresResponse, PromptScore } from "@/lib/api";
+import { useAuthedFetch } from "@/lib/use-authed-fetch";
 import { LoadingSpinner } from "@/components/loading-spinner";
 import { ErrorBanner } from "@/components/error-banner";
 import { EmptyState } from "@/components/empty-state";
+import { ExportButton } from "@/components/export-button";
 
 function todayStr() {
   return new Date().toISOString().slice(0, 10);
@@ -13,6 +15,7 @@ function todayStr() {
 
 export default function PromptScoresPage() {
   const { selectedBrand, loading: brandLoading } = useBrand();
+  const authedFetch = useAuthedFetch();
   const [date, setDate] = useState(todayStr);
   const [scores, setScores] = useState<PromptScore[]>([]);
   const [total, setTotal] = useState(0);
@@ -23,7 +26,7 @@ export default function PromptScoresPage() {
     if (!selectedBrand) return;
     setLoading(true);
     setError(null);
-    apiFetch<PromptScoresResponse>("/prompt-scores", {
+    authedFetch<PromptScoresResponse>("/prompt-scores", {
       brand: selectedBrand,
       date,
     })
@@ -33,7 +36,7 @@ export default function PromptScoresPage() {
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
-  }, [selectedBrand, date]);
+  }, [selectedBrand, date, authedFetch]);
 
   if (brandLoading) return <LoadingSpinner />;
 
@@ -41,12 +44,21 @@ export default function PromptScoresPage() {
     <div className="space-y-8">
       <div className="flex items-center justify-between">
         <h1 className="text-heading tracking-tight text-charcoal">Prompt Scores</h1>
-        <input
-          type="date"
-          value={date}
-          onChange={(e) => setDate(e.target.value)}
-          className="rounded-lg border border-surface-200 bg-surface-0 px-3 py-1.5 text-body-sm text-charcoal-light shadow-subtle focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-100"
-        />
+        <div className="flex items-center gap-3">
+          {selectedBrand && (
+            <ExportButton
+              path="/prompt-scores"
+              params={{ brand: selectedBrand, date }}
+              filename={`${selectedBrand}_prompt_scores_${date}.csv`}
+            />
+          )}
+          <input
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            className="rounded-lg border border-surface-200 bg-surface-0 px-3 py-1.5 text-body-sm text-charcoal-light shadow-subtle focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-100"
+          />
+        </div>
       </div>
 
       {loading && <LoadingSpinner />}

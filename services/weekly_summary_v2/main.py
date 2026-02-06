@@ -22,7 +22,10 @@ import google.generativeai as genai
 from fastapi import FastAPI, HTTPException
 from google.api_core.exceptions import ResourceExhausted, ServiceUnavailable
 from google.cloud import bigquery
+from google.cloud import firestore as cloud_firestore
 from pydantic import BaseModel, Field
+from sendgrid import SendGridAPIClient
+from sendgrid.helpers.mail import Mail, Email, To, Content
 
 # -----------------------------------------------------------------------------
 # Configuration
@@ -36,6 +39,9 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 MAX_RETRIES = int(os.getenv("MAX_RETRIES", "3"))
 RETRY_BACKOFF_BASE = float(os.getenv("RETRY_BACKOFF_BASE", "2"))
+SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY", "")
+EMAIL_FROM = os.getenv("EMAIL_FROM", "reports@knewsearch.com")
+EMAIL_ENABLED = os.getenv("EMAIL_ENABLED", "false").lower() == "true"
 
 # -----------------------------------------------------------------------------
 # Structured Logging
@@ -788,6 +794,85 @@ def parse_gemini_response(response_text: str) -> dict[str, Any]:
 
 
 # -----------------------------------------------------------------------------
+# Email Delivery
+# -----------------------------------------------------------------------------
+
+_fs_client: cloud_firestore.Client | None = None
+
+
+def _get_fs_client() -> cloud_firestore.Client:
+    """Get or create Firestore client."""
+    global _fs_client
+    if _fs_client is None:
+        _fs_client = cloud_firestore.Client(project=GCP_PROJECT_ID)
+    return _fs_client
+
+
+def send_weekly_email(
+    brand: str,
+    start_date: str,
+    end_date: str,
+    email_html: str,
+    request_id: str,
+) -> None:
+    """Send weekly summary email to all client contacts who own this brand."""
+    if not EMAIL_ENABLED or not SENDGRID_API_KEY:
+        logger.info(
+            "Email delivery disabled, skipping",
+            extra={"request_id": request_id, "brand": brand},
+        )
+        return
+
+    fs = _get_fs_client()
+
+    # Find client(s) that own this brand
+    client_docs = fs.collection("clients").where("brands", "array_contains", brand).stream()
+
+    recipients: list[str] = []
+    for client_doc in client_docs:
+        client_data = client_doc.to_dict()
+        # Only send to active clients
+        if client_data.get("status") != "active":
+            continue
+        # Get member emails
+        members = fs.collection("clients").document(client_doc.id).collection("members").stream()
+        for member in members:
+            member_data = member.to_dict()
+            email = member_data.get("email")
+            if email:
+                recipients.append(email)
+
+    if not recipients:
+        logger.info(
+            f"No recipients found for brand={brand}",
+            extra={"request_id": request_id, "brand": brand},
+        )
+        return
+
+    subject = f"Weekly Visibility Report: {brand} ({start_date} to {end_date})"
+    sg = SendGridAPIClient(SENDGRID_API_KEY)
+
+    for recipient in recipients:
+        try:
+            message = Mail(
+                from_email=Email(EMAIL_FROM, "KnewSearch"),
+                to_emails=To(recipient),
+                subject=subject,
+                html_content=Content("text/html", email_html),
+            )
+            sg.send(message)
+            logger.info(
+                f"Sent weekly email to {recipient} for brand={brand}",
+                extra={"request_id": request_id, "brand": brand},
+            )
+        except Exception as e:
+            logger.error(
+                f"Failed to send email to {recipient}: {e}",
+                extra={"request_id": request_id, "brand": brand},
+            )
+
+
+# -----------------------------------------------------------------------------
 # Main Processing Logic
 # -----------------------------------------------------------------------------
 
@@ -939,6 +1024,20 @@ def generate_weekly_summary(request: WeeklySummaryRequest) -> WeeklySummaryRespo
         f"Weekly summary generated successfully",
         extra={"request_id": request_id, "summary_id": summary_id, "brand": brand},
     )
+
+    # Send email to client contacts
+    try:
+        email_html = generate_email_html(
+            brand, start_str, end_str,
+            parsed_response.get("executive_summary", ""),
+            summary_json,
+        )
+        send_weekly_email(brand, start_str, end_str, email_html, request_id)
+    except Exception as e:
+        logger.error(
+            f"Email delivery failed (non-fatal): {e}",
+            extra={"request_id": request_id, "brand": brand},
+        )
 
     return WeeklySummaryResponse(
         summary_id=summary_id,
