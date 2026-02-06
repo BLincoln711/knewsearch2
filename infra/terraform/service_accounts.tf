@@ -45,10 +45,19 @@ resource "google_service_account" "api_gateway" {
 }
 
 # -----------------------------------------------------------------------------
-# IAM Bindings - Placeholder (add specific roles when resources are created)
+# Invoker Service Accounts (for Pub/Sub push and Cloud Scheduler)
 # -----------------------------------------------------------------------------
 
-# TODO: Add BigQuery roles when tables are created
-# TODO: Add Pub/Sub roles when topics are created
-# TODO: Add Secret Manager accessor roles
-# TODO: Add Vertex AI user roles
+# pubsub_invoker: Used by Pub/Sub to invoke Cloud Run services
+resource "google_service_account" "pubsub_invoker" {
+  account_id   = "knewsearch-pubsub-invoker"
+  display_name = "KnewSearch Pub/Sub Invoker"
+  description  = "Service account for Pub/Sub push subscriptions to invoke Cloud Run"
+}
+
+# scheduler_invoker: Used by Cloud Scheduler to invoke Cloud Run services
+resource "google_service_account" "scheduler_invoker" {
+  account_id   = "knewsearch-scheduler-invoker"
+  display_name = "KnewSearch Scheduler Invoker"
+  description  = "Service account for Cloud Scheduler to invoke Cloud Run"
+}

@@ -350,8 +350,18 @@ def extract_named_entities(text: str, brand: str | None) -> list[tuple[str, str,
         entity_text = match.group(1).strip()
         normalized = normalize_text(entity_text)
 
-        # Skip if too short or common words
-        if len(entity_text) < 3 or normalized in {'the', 'this', 'that', 'with', 'from'}:
+        # Skip common single-word false positives (sentence starters, etc.)
+        _STOP_ENTITIES = {
+            'the', 'this', 'that', 'with', 'from', 'for', 'see', 'also',
+            'visit', 'learn', 'known', 'offers', 'source', 'here', 'more',
+            'pricing', 'affordable', 'great', 'best', 'some', 'most',
+            'when', 'what', 'where', 'which', 'their', 'your', 'our',
+            'many', 'each', 'both', 'other', 'these', 'those', 'such',
+        }
+        if len(entity_text) < 3 or normalized in _STOP_ENTITIES:
+            continue
+        # Single capitalized word at start of sentence is likely not an entity
+        if ' ' not in entity_text and len(entity_text) < 8:
             continue
 
         # Determine entity type
@@ -393,10 +403,22 @@ def is_brand_owned_domain(domain: str, brand: str | None) -> bool:
     if not brand:
         return False
 
-    normalized_brand = normalize_text(brand).replace(' ', '')
-    normalized_domain = domain.lower().replace('.', '').replace('-', '')
+    # Generate brand name variants for matching
+    brand_lower = brand.lower()
+    brand_words = brand_lower.split()
+    normalized_domain = domain.lower().replace('-', '')
 
-    return normalized_brand in normalized_domain
+    # Check full brand (no spaces) against domain
+    brand_no_spaces = brand_lower.replace(' ', '')
+    if brand_no_spaces in normalized_domain:
+        return True
+
+    # Check each significant brand word (>2 chars) against domain
+    for word in brand_words:
+        if len(word) > 2 and word in normalized_domain:
+            return True
+
+    return False
 
 
 # -----------------------------------------------------------------------------
@@ -423,6 +445,10 @@ def write_citations_to_bigquery(citations: list[CitationRecord]) -> None:
     if not citations:
         return
 
+    if not GCP_PROJECT_ID:
+        logger.warning("GCP_PROJECT_ID not set, skipping BigQuery citation write")
+        return
+
     client = get_bq_client()
     table_id = f"{GCP_PROJECT_ID}.{BQ_DATASET}.citations"
 
@@ -440,6 +466,7 @@ def write_citations_to_bigquery(citations: list[CitationRecord]) -> None:
             "anchor_text": c.anchor_text,
             "is_brand_owned": c.is_brand_owned,
             "is_competitor": c.is_competitor,
+            "created_at": datetime.now(timezone.utc).isoformat(),
             "metadata": None,
         }
         for c in citations
@@ -454,6 +481,10 @@ def write_citations_to_bigquery(citations: list[CitationRecord]) -> None:
 def write_entities_to_bigquery(entities: list[EntityRecord]) -> None:
     """Insert entity rows into BigQuery with deduplication."""
     if not entities:
+        return
+
+    if not GCP_PROJECT_ID:
+        logger.warning("GCP_PROJECT_ID not set, skipping BigQuery entity write")
         return
 
     client = get_bq_client()
@@ -474,6 +505,7 @@ def write_entities_to_bigquery(entities: list[EntityRecord]) -> None:
             "is_target_brand": e.is_target_brand,
             "is_competitor": e.is_competitor,
             "sentiment": e.sentiment,
+            "created_at": datetime.now(timezone.utc).isoformat(),
             "metadata": None,
         }
         for e in entities
@@ -486,6 +518,10 @@ def write_entities_to_bigquery(entities: list[EntityRecord]) -> None:
 
 def fetch_previous_answer(prompt_id: str, event_date: str, answer_id: str) -> str | None:
     """Fetch the most recent previous answer for the same prompt."""
+    if not GCP_PROJECT_ID:
+        logger.warning("GCP_PROJECT_ID not set, skipping previous answer fetch")
+        return None
+
     client = get_bq_client()
 
     query = f"""
@@ -551,6 +587,10 @@ def compute_diff_metadata(current: str, previous: str | None) -> dict[str, Any]:
 
 def update_answer_metadata(answer_id: str, event_date: str, metadata: dict[str, Any]) -> None:
     """Update ai_answers row with diff metadata."""
+    if not GCP_PROJECT_ID:
+        logger.warning("GCP_PROJECT_ID not set, skipping answer metadata update")
+        return
+
     client = get_bq_client()
 
     # Use MERGE for idempotent update
@@ -585,6 +625,10 @@ def update_answer_metadata(answer_id: str, event_date: str, metadata: dict[str, 
 
 def publish_answer_parsed(message: AnswerParsedMessage) -> None:
     """Publish answer_parsed message to Pub/Sub."""
+    if not GCP_PROJECT_ID:
+        logger.warning("GCP_PROJECT_ID not set, skipping Pub/Sub publish")
+        return
+
     publisher = get_publisher()
     topic_path = publisher.topic_path(GCP_PROJECT_ID, PUBSUB_TOPIC_ANSWER_PARSED)
 

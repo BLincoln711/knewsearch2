@@ -16,6 +16,13 @@ EVENT_DATE=$(date -u +"%Y-%m-%d")
 RUN_ID="smoke_parser_$(date +%s)"
 ANSWER_ID="ans_smoke_${RUN_ID}"
 
+# Helper: split curl response into body and HTTP code (macOS compatible)
+split_response() {
+  local response="$1"
+  RESP_CODE=$(echo "$response" | tail -n 1)
+  RESP_BODY=$(echo "$response" | sed '$d')
+}
+
 echo "========================================"
 echo "Parser Service Smoke Test"
 echo "========================================"
@@ -31,15 +38,14 @@ echo "Test 1: Health Check"
 echo "--------------------"
 
 HEALTH_RESPONSE=$(curl -s -w "\n%{http_code}" "$BASE_URL/health")
-HEALTH_BODY=$(echo "$HEALTH_RESPONSE" | head -n -1)
-HEALTH_CODE=$(echo "$HEALTH_RESPONSE" | tail -n 1)
+split_response "$HEALTH_RESPONSE"
 
-if [[ "$HEALTH_CODE" == "200" ]]; then
+if [[ "$RESP_CODE" == "200" ]]; then
   echo "PASS: Health check returned 200"
-  echo "Response: $HEALTH_BODY"
+  echo "Response: $RESP_BODY"
 else
-  echo "FAIL: Health check returned $HEALTH_CODE"
-  echo "Response: $HEALTH_BODY"
+  echo "FAIL: Health check returned $RESP_CODE"
+  echo "Response: $RESP_BODY"
   exit 1
 fi
 
@@ -91,8 +97,9 @@ PARSE_RESPONSE=$(curl -s -w "\n%{http_code}" \
   -H "Content-Type: application/json" \
   -d "$PARSE_PAYLOAD")
 
-PARSE_BODY=$(echo "$PARSE_RESPONSE" | head -n -1)
-PARSE_CODE=$(echo "$PARSE_RESPONSE" | tail -n 1)
+split_response "$PARSE_RESPONSE"
+PARSE_BODY="$RESP_BODY"
+PARSE_CODE="$RESP_CODE"
 
 if [[ "$PARSE_CODE" == "200" ]]; then
   echo "PASS: Parse endpoint returned 200"
@@ -191,15 +198,14 @@ PUBSUB_RESPONSE=$(curl -s -w "\n%{http_code}" \
   -H "Content-Type: application/json" \
   -d "$PUBSUB_PAYLOAD")
 
-PUBSUB_BODY=$(echo "$PUBSUB_RESPONSE" | head -n -1)
-PUBSUB_CODE=$(echo "$PUBSUB_RESPONSE" | tail -n 1)
+split_response "$PUBSUB_RESPONSE"
 
-if [[ "$PUBSUB_CODE" == "200" ]]; then
+if [[ "$RESP_CODE" == "200" ]]; then
   echo "PASS: Pub/Sub push endpoint returned 200"
-  echo "Response: $PUBSUB_BODY"
+  echo "Response: $RESP_BODY"
 else
-  echo "FAIL: Pub/Sub push endpoint returned $PUBSUB_CODE"
-  echo "Response: $PUBSUB_BODY"
+  echo "FAIL: Pub/Sub push endpoint returned $RESP_CODE"
+  echo "Response: $RESP_BODY"
   exit 1
 fi
 
@@ -217,7 +223,8 @@ PARSE_RESPONSE_2=$(curl -s -w "\n%{http_code}" \
   -H "Content-Type: application/json" \
   -d "$PARSE_PAYLOAD")
 
-PARSE_BODY_2=$(echo "$PARSE_RESPONSE_2" | head -n -1)
+split_response "$PARSE_RESPONSE_2"
+PARSE_BODY_2="$RESP_BODY"
 
 # Extract citation IDs from both responses
 CITATIONS_1=$(echo "$PARSE_BODY" | python3 -c "

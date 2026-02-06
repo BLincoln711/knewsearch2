@@ -1,5 +1,39 @@
 # Copy to terraform.tfvars and fill in values
-project_id          = "your-gcp-project-id"
-region              = "us-central1"
-environment         = "dev"
+# =============================================================================
+# Required Variables
+# =============================================================================
+project_id = "your-gcp-project-id"
+
+# =============================================================================
+# Optional Variables (defaults provided)
+# =============================================================================
+
+# General
+region      = "us-central1"
+environment = "dev"
+
+# BigQuery
 bigquery_dataset_id = "knewsearch_aeo"
+bigquery_location   = "US"
+
+# Cloud Run Images (update with actual images after building)
+# Format: gcr.io/PROJECT_ID/SERVICE_NAME:TAG or REGION-docker.pkg.dev/PROJECT_ID/REPO/IMAGE:TAG
+prompt_runner_image    = "gcr.io/cloudrun/placeholder"
+answer_generator_image = "gcr.io/cloudrun/placeholder"
+parser_image           = "gcr.io/cloudrun/placeholder"
+
+# Cloud Run Resources
+cloud_run_cpu           = "1"
+cloud_run_memory        = "512Mi"
+cloud_run_max_instances = 10
+log_level               = "INFO"
+
+# Cloud Scheduler
+daily_run_schedule      = "0 6 * * *"       # 6 AM daily
+weekly_summary_schedule = "0 8 * * 1"       # Monday 8 AM
+scheduler_timezone      = "America/Chicago"
+
+# AI/ML Models
+gemini_model        = "gemini-1.5-pro"
+embedding_model     = "text-embedding-004"
+embedding_dimension = 768

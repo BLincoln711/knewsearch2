@@ -1,0 +1,32 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Clients collection - superadmins can read/write all, client members can read their own
+    match /clients/{clientId} {
+      allow read: if request.auth != null &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'superadmin' ||
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.client_id == clientId);
+      allow write: if request.auth != null &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'superadmin';
+
+      // Client members subcollection
+      match /members/{uid} {
+        allow read: if request.auth != null &&
+          (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'superadmin' ||
+           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.client_id == clientId);
+        allow write: if request.auth != null &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'superadmin';
+      }
+    }
+
+    // Users collection - users can read their own doc, superadmins can read/write all
+    match /users/{uid} {
+      allow read: if request.auth != null &&
+        (request.auth.uid == uid ||
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'superadmin');
+      allow write: if request.auth != null &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'superadmin';
+    }
+  }
+}
