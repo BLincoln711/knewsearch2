@@ -9,6 +9,7 @@ import { LogOut, User, Shield } from "lucide-react";
 const links = [
   { href: "/", label: "Overview" },
   { href: "/prompt-scores", label: "Prompt Scores" },
+  { href: "/tracked-searches", label: "Tracked Searches" },
   { href: "/weekly-summary", label: "Weekly Summary" },
   { href: "/data-health", label: "Data Health" },
   { href: "/billing", label: "Billing" },

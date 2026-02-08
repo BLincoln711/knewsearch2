@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useAuthedFetch } from "@/lib/use-authed-fetch";
 import { useAuthedMutate } from "@/lib/use-authed-fetch";
-import { AdminClient, AdminMessage, BillingInfo } from "@/lib/api";
+import { AdminClient, AdminMessage, BillingInfo, Prompt, AdminClientPromptsResponse } from "@/lib/api";
 import { LoadingSpinner } from "@/components/loading-spinner";
 import { ErrorBanner } from "@/components/error-banner";
 import {
@@ -15,6 +15,7 @@ import {
   X,
   Save,
   CreditCard,
+  Search,
 } from "lucide-react";
 
 export default function ClientDetailPage() {
@@ -43,6 +44,11 @@ export default function ClientDetailPage() {
   const [inviteRole, setInviteRole] = useState("client_member");
   const [inviting, setInviting] = useState(false);
 
+  // Prompts
+  const [clientPrompts, setClientPrompts] = useState<Prompt[]>([]);
+  const [promptsTotal, setPromptsTotal] = useState(0);
+  const [promptsActiveCount, setPromptsActiveCount] = useState(0);
+
   // Billing
   const [billing, setBilling] = useState<BillingInfo | null>(null);
   const [creatingSubscription, setCreatingSubscription] = useState(false);
@@ -62,10 +68,18 @@ export default function ClientDetailPage() {
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
 
-    // Fetch billing info in parallel
+    // Fetch billing info and prompts in parallel
     authedFetch<BillingInfo>(`/admin/clients/${clientId}/billing`)
       .then(setBilling)
       .catch(() => setBilling(null));
+
+    authedFetch<AdminClientPromptsResponse>(`/admin/clients/${clientId}/prompts`)
+      .then((res) => {
+        setClientPrompts(res.prompts);
+        setPromptsTotal(res.total);
+        setPromptsActiveCount(res.active_count);
+      })
+      .catch(() => setClientPrompts([]));
   };
 
   useEffect(() => {
@@ -272,6 +286,79 @@ export default function ClientDetailPage() {
             {addingBrand ? "Adding..." : "Add"}
           </button>
         </div>
+      </div>
+
+      {/* Tracked Searches Card */}
+      <div className="rounded-2xl bg-surface-0 p-6 shadow-card space-y-4">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-3">
+            <Search className="h-5 w-5 text-primary-600" />
+            <h2 className="text-body-lg font-semibold text-charcoal">
+              Tracked Searches
+            </h2>
+          </div>
+          {promptsTotal > 0 && (
+            <span className="rounded-full bg-primary-50 px-2.5 py-0.5 text-caption font-medium text-primary-700">
+              {promptsActiveCount} of {promptsTotal} active
+            </span>
+          )}
+        </div>
+
+        {clientPrompts.length > 0 ? (
+          <div className="overflow-hidden rounded-xl border border-surface-100">
+            <table className="min-w-full divide-y divide-surface-100">
+              <thead>
+                <tr className="bg-surface-50 text-left text-caption font-medium uppercase tracking-wider text-charcoal-muted">
+                  <th className="px-4 py-2">Query</th>
+                  <th className="px-4 py-2">Brand</th>
+                  <th className="px-4 py-2">Category</th>
+                  <th className="px-4 py-2 text-center">Active</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-surface-100">
+                {clientPrompts.map((p) => (
+                  <tr key={p.prompt_id} className="text-body-sm">
+                    <td className="px-4 py-2.5 text-charcoal-light max-w-xs truncate">
+                      {p.prompt_text.length > 60
+                        ? p.prompt_text.slice(0, 60) + "..."
+                        : p.prompt_text}
+                    </td>
+                    <td className="px-4 py-2.5 text-charcoal-muted">
+                      {p.brand}
+                    </td>
+                    <td className="px-4 py-2.5">
+                      <span
+                        className={`inline-block rounded-full px-2 py-0.5 text-caption font-medium ${
+                          p.category === "brand"
+                            ? "bg-primary-50 text-primary-700"
+                            : p.category === "competitor"
+                            ? "bg-amber-50 text-amber-700"
+                            : p.category === "industry"
+                            ? "bg-emerald-50 text-emerald-700"
+                            : "bg-surface-100 text-charcoal-muted"
+                        }`}
+                      >
+                        {(p.category || "brand").charAt(0).toUpperCase() +
+                          (p.category || "brand").slice(1)}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2.5 text-center">
+                      <span
+                        className={`inline-block h-2 w-2 rounded-full ${
+                          p.is_active ? "bg-positive-500" : "bg-surface-300"
+                        }`}
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="text-body-sm text-charcoal-muted">
+            No prompts configured for this client.
+          </p>
+        )}
       </div>
 
       {/* Invite User Card */}
