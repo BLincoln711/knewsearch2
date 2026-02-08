@@ -111,6 +111,43 @@ export interface HealthResponse {
   service: string;
 }
 
+// --- Prompt Management types ---
+
+export interface Prompt {
+  prompt_id: string;
+  prompt_text: string;
+  category: string;
+  brand: string;
+  keywords: string[];
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PromptsListResponse {
+  brand: string;
+  prompts: Prompt[];
+  total: number;
+  active_count: number;
+}
+
+export interface CreatePromptResponse {
+  message: string;
+  prompt_id: string;
+}
+
+export interface UpdatePromptResponse {
+  message: string;
+  prompt_id: string;
+}
+
+export interface AdminClientPromptsResponse {
+  client_id: string;
+  prompts: Prompt[];
+  total: number;
+  active_count: number;
+}
+
 // --- Admin types ---
 
 export interface AdminClient {

@@ -288,6 +288,67 @@ class AdminMessageResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# Prompt Management Pydantic Models
+# ---------------------------------------------------------------------------
+
+
+class PromptItem(BaseModel):
+    """A single prompt record."""
+    prompt_id: str
+    prompt_text: str
+    category: str | None = None
+    brand: str
+    keywords: list[str] = []
+    is_active: bool = True
+    created_at: str
+    updated_at: str
+
+
+class PromptsListResponse(BaseModel):
+    """Paginated list of prompts for a brand."""
+    brand: str
+    prompts: list[PromptItem]
+    total: int
+    active_count: int
+
+
+class CreatePromptRequest(BaseModel):
+    """Client-facing request to create a new prompt."""
+    prompt_text: str = Field(description="The search query text")
+    brand: str = Field(description="Brand this prompt tracks")
+    category: str = Field(default="brand", description="Category: brand, competitor, industry, custom")
+    keywords: list[str] = Field(default=[], description="Optional keywords")
+
+
+class CreatePromptResponse(BaseModel):
+    """Response after creating a prompt."""
+    message: str
+    prompt_id: str
+
+
+class UpdatePromptRequest(BaseModel):
+    """Request to update an existing prompt."""
+    prompt_text: str | None = None
+    category: str | None = None
+    is_active: bool | None = None
+    keywords: list[str] | None = None
+
+
+class UpdatePromptResponse(BaseModel):
+    """Response after updating a prompt."""
+    message: str
+    prompt_id: str
+
+
+class AdminClientPromptsResponse(BaseModel):
+    """Prompts for a client (admin view)."""
+    client_id: str
+    prompts: list[PromptItem]
+    total: int
+    active_count: int
+
+
 class CreateSubscriptionRequest(BaseModel):
     """Request to create a Stripe subscription for a client."""
     trial_days: int | None = Field(default=14, description="Trial period days, or None for no trial")
@@ -779,6 +840,230 @@ async def get_weekly_summary(
 
 
 # ---------------------------------------------------------------------------
+# Prompt Management Endpoints
+# ---------------------------------------------------------------------------
+
+
+VALID_CATEGORIES = {"brand", "competitor", "industry", "custom"}
+
+
+@app.get("/prompts", response_model=PromptsListResponse)
+@limiter.limit("100/minute")
+async def list_prompts(
+    request: Request,
+    auth_user: AuthUser | None = Depends(verify_firebase_token),
+    brand: str = Query(..., description="Brand to list prompts for"),
+    category: str | None = Query(default=None, description="Filter by category"),
+    is_active: str | None = Query(default=None, description="Filter by active status: true or false"),
+) -> PromptsListResponse:
+    """List all prompts for a brand, scoped to client access."""
+    _require_project_id()
+    request_id = request.state.request_id
+    verify_brand_access(brand, auth_user, request_id)
+
+    filters = "WHERE brand = @brand"
+    params = [bigquery.ScalarQueryParameter("brand", "STRING", brand)]
+
+    if category:
+        filters += " AND category = @category"
+        params.append(bigquery.ScalarQueryParameter("category", "STRING", category))
+    if is_active is not None:
+        active_bool = is_active.lower() == "true"
+        filters += " AND is_active = @is_active"
+        params.append(bigquery.ScalarQueryParameter("is_active", "BOOL", active_bool))
+
+    # Count queries
+    count_sql = f"""
+    SELECT COUNT(*) AS total FROM `{GCP_PROJECT_ID}.{BQ_DATASET}.prompts` {filters}
+    """
+    count_rows = run_query(count_sql, params=params, request_id=request_id)
+    total = count_rows[0]["total"] if count_rows else 0
+
+    active_sql = f"""
+    SELECT COUNT(*) AS cnt FROM `{GCP_PROJECT_ID}.{BQ_DATASET}.prompts`
+    WHERE brand = @brand AND is_active = TRUE
+    """
+    active_params = [bigquery.ScalarQueryParameter("brand", "STRING", brand)]
+    active_rows = run_query(active_sql, params=active_params, request_id=request_id)
+    active_count = active_rows[0]["cnt"] if active_rows else 0
+
+    # Main query
+    sql = f"""
+    SELECT prompt_id, prompt_text, category, brand, keywords, is_active,
+           FORMAT_TIMESTAMP('%Y-%m-%dT%H:%M:%SZ', created_at) AS created_at,
+           FORMAT_TIMESTAMP('%Y-%m-%dT%H:%M:%SZ', updated_at) AS updated_at
+    FROM `{GCP_PROJECT_ID}.{BQ_DATASET}.prompts`
+    {filters}
+    ORDER BY created_at DESC
+    """
+    rows = run_query(sql, params=params, request_id=request_id)
+
+    prompts = [
+        PromptItem(
+            prompt_id=r["prompt_id"],
+            prompt_text=r["prompt_text"],
+            category=r.get("category") or "brand",
+            brand=r["brand"],
+            keywords=r.get("keywords") or [],
+            is_active=r["is_active"],
+            created_at=r.get("created_at") or "",
+            updated_at=r.get("updated_at") or "",
+        )
+        for r in rows
+    ]
+
+    logger.info(
+        f"Returning {len(prompts)} prompts for brand={brand}",
+        extra={"request_id": request_id, "brand": brand},
+    )
+
+    return PromptsListResponse(
+        brand=brand, prompts=prompts, total=total, active_count=active_count
+    )
+
+
+@app.post("/prompts", response_model=CreatePromptResponse)
+@limiter.limit("30/minute")
+async def create_prompt(
+    request: Request,
+    body: CreatePromptRequest,
+    auth_user: AuthUser | None = Depends(verify_firebase_token),
+) -> CreatePromptResponse:
+    """Create a new tracked search prompt."""
+    _require_project_id()
+    request_id = request.state.request_id
+    verify_brand_access(body.brand, auth_user, request_id)
+
+    if body.category not in VALID_CATEGORIES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid category '{body.category}'. Must be one of: {', '.join(VALID_CATEGORIES)}",
+        )
+
+    now = datetime.now(timezone.utc)
+    prompt_id = f"prm_{uuid.uuid4().hex[:8]}"
+
+    bq = get_bq_client()
+    row = {
+        "prompt_id": prompt_id,
+        "prompt_text": body.prompt_text,
+        "category": body.category,
+        "brand": body.brand,
+        "keywords": body.keywords,
+        "is_active": True,
+        "created_at": now.isoformat(),
+        "updated_at": now.isoformat(),
+    }
+    table_ref = f"{GCP_PROJECT_ID}.{BQ_DATASET}.prompts"
+    errors = bq.insert_rows_json(table_ref, [row])
+    if errors:
+        logger.error(f"Prompt insert errors: {errors}", extra={"request_id": request_id})
+        raise HTTPException(status_code=500, detail="Failed to create prompt")
+
+    logger.info(
+        f"Created prompt {prompt_id} for brand={body.brand}",
+        extra={"request_id": request_id, "brand": body.brand},
+    )
+
+    return CreatePromptResponse(message="Prompt created", prompt_id=prompt_id)
+
+
+@app.put("/prompts/{prompt_id}", response_model=UpdatePromptResponse)
+@limiter.limit("30/minute")
+async def update_prompt(
+    prompt_id: str,
+    request: Request,
+    body: UpdatePromptRequest,
+    auth_user: AuthUser | None = Depends(verify_firebase_token),
+) -> UpdatePromptResponse:
+    """Update an existing prompt (text, category, active status)."""
+    _require_project_id()
+    request_id = request.state.request_id
+
+    # Look up existing prompt to verify brand access
+    lookup_sql = f"""
+    SELECT brand FROM `{GCP_PROJECT_ID}.{BQ_DATASET}.prompts`
+    WHERE prompt_id = @prompt_id LIMIT 1
+    """
+    lookup_params = [bigquery.ScalarQueryParameter("prompt_id", "STRING", prompt_id)]
+    rows = run_query(lookup_sql, params=lookup_params, request_id=request_id)
+    if not rows:
+        raise HTTPException(status_code=404, detail="Prompt not found")
+
+    verify_brand_access(rows[0]["brand"], auth_user, request_id)
+
+    if body.category is not None and body.category not in VALID_CATEGORIES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid category '{body.category}'. Must be one of: {', '.join(VALID_CATEGORIES)}",
+        )
+
+    # Build dynamic SET clause
+    set_clauses = ["updated_at = CURRENT_TIMESTAMP()"]
+    dml_params = [bigquery.ScalarQueryParameter("prompt_id", "STRING", prompt_id)]
+
+    if body.prompt_text is not None:
+        set_clauses.append("prompt_text = @prompt_text")
+        dml_params.append(bigquery.ScalarQueryParameter("prompt_text", "STRING", body.prompt_text))
+    if body.category is not None:
+        set_clauses.append("category = @category")
+        dml_params.append(bigquery.ScalarQueryParameter("category", "STRING", body.category))
+    if body.is_active is not None:
+        set_clauses.append("is_active = @is_active")
+        dml_params.append(bigquery.ScalarQueryParameter("is_active", "BOOL", body.is_active))
+    if body.keywords is not None:
+        set_clauses.append("keywords = @keywords")
+        dml_params.append(
+            bigquery.ArrayQueryParameter("keywords", "STRING", body.keywords)
+        )
+
+    update_sql = f"""
+    UPDATE `{GCP_PROJECT_ID}.{BQ_DATASET}.prompts`
+    SET {', '.join(set_clauses)}
+    WHERE prompt_id = @prompt_id
+    """
+    run_query(update_sql, params=dml_params, request_id=request_id)
+
+    logger.info(f"Updated prompt {prompt_id}", extra={"request_id": request_id})
+    return UpdatePromptResponse(message="Prompt updated", prompt_id=prompt_id)
+
+
+@app.delete("/prompts/{prompt_id}", response_model=UpdatePromptResponse)
+@limiter.limit("30/minute")
+async def delete_prompt(
+    prompt_id: str,
+    request: Request,
+    auth_user: AuthUser | None = Depends(verify_firebase_token),
+) -> UpdatePromptResponse:
+    """Soft-delete a prompt by setting is_active = FALSE."""
+    _require_project_id()
+    request_id = request.state.request_id
+
+    # Look up existing prompt to verify brand access
+    lookup_sql = f"""
+    SELECT brand FROM `{GCP_PROJECT_ID}.{BQ_DATASET}.prompts`
+    WHERE prompt_id = @prompt_id LIMIT 1
+    """
+    lookup_params = [bigquery.ScalarQueryParameter("prompt_id", "STRING", prompt_id)]
+    rows = run_query(lookup_sql, params=lookup_params, request_id=request_id)
+    if not rows:
+        raise HTTPException(status_code=404, detail="Prompt not found")
+
+    verify_brand_access(rows[0]["brand"], auth_user, request_id)
+
+    deactivate_sql = f"""
+    UPDATE `{GCP_PROJECT_ID}.{BQ_DATASET}.prompts`
+    SET is_active = FALSE, updated_at = CURRENT_TIMESTAMP()
+    WHERE prompt_id = @prompt_id
+    """
+    dml_params = [bigquery.ScalarQueryParameter("prompt_id", "STRING", prompt_id)]
+    run_query(deactivate_sql, params=dml_params, request_id=request_id)
+
+    logger.info(f"Deactivated prompt {prompt_id}", extra={"request_id": request_id})
+    return UpdatePromptResponse(message="Prompt deactivated", prompt_id=prompt_id)
+
+
+# ---------------------------------------------------------------------------
 # Admin Endpoints (superadmin only)
 # ---------------------------------------------------------------------------
 
@@ -1062,6 +1347,65 @@ async def add_prompts_for_client(
     return AdminMessageResponse(
         message=f"Added {len(rows_to_insert)} prompts for brand '{body.brand}'",
         client_id=client_id,
+    )
+
+
+@app.get("/admin/clients/{client_id}/prompts", response_model=AdminClientPromptsResponse)
+async def list_client_prompts(
+    client_id: str,
+    request: Request,
+    auth_user: AuthUser | None = Depends(verify_firebase_token),
+) -> AdminClientPromptsResponse:
+    """List all prompts across all of a client's brands (superadmin only)."""
+    _require_superadmin(auth_user)
+    _require_project_id()
+    request_id = request.state.request_id
+
+    fs = get_fs_client()
+    doc = fs.collection("clients").document(client_id).get()
+    if not doc.exists:
+        raise HTTPException(status_code=404, detail="Client not found")
+
+    brands = doc.to_dict().get("brands", [])
+    if not brands:
+        return AdminClientPromptsResponse(
+            client_id=client_id, prompts=[], total=0, active_count=0
+        )
+
+    sql = f"""
+    SELECT prompt_id, prompt_text, category, brand, keywords, is_active,
+           FORMAT_TIMESTAMP('%Y-%m-%dT%H:%M:%SZ', created_at) AS created_at,
+           FORMAT_TIMESTAMP('%Y-%m-%dT%H:%M:%SZ', updated_at) AS updated_at
+    FROM `{GCP_PROJECT_ID}.{BQ_DATASET}.prompts`
+    WHERE brand IN UNNEST(@brands)
+    ORDER BY brand, created_at DESC
+    """
+    params = [bigquery.ArrayQueryParameter("brands", "STRING", brands)]
+    rows = run_query(sql, params=params, request_id=request_id)
+
+    prompts = [
+        PromptItem(
+            prompt_id=r["prompt_id"],
+            prompt_text=r["prompt_text"],
+            category=r.get("category") or "brand",
+            brand=r["brand"],
+            keywords=r.get("keywords") or [],
+            is_active=r["is_active"],
+            created_at=r.get("created_at") or "",
+            updated_at=r.get("updated_at") or "",
+        )
+        for r in rows
+    ]
+    total = len(prompts)
+    active_count = sum(1 for p in prompts if p.is_active)
+
+    logger.info(
+        f"Returning {total} prompts for client {client_id}",
+        extra={"request_id": request_id},
+    )
+
+    return AdminClientPromptsResponse(
+        client_id=client_id, prompts=prompts, total=total, active_count=active_count
     )
 
 
