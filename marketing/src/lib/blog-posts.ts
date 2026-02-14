@@ -3433,8 +3433,9 @@ Track your Share of Model, benchmark against competitors, and identify your bigg
 ];
 
 import { newBlogPosts } from "./blog-posts-new";
+import { batch3BlogPosts } from "./blog-posts-batch3";
 
-const allPosts = [...blogPosts, ...newBlogPosts];
+const allPosts = [...blogPosts, ...newBlogPosts, ...batch3BlogPosts];
 
 export function getBlogPost(slug: string): BlogPost | undefined {
   return allPosts.find(post => post.slug === slug);
