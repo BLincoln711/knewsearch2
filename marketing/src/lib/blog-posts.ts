@@ -3442,5 +3442,7 @@ export function getBlogPost(slug: string): BlogPost | undefined {
 }
 
 export function getAllBlogPosts(): BlogPost[] {
-  return allPosts;
+  return [...allPosts].sort((a, b) =>
+    new Date(b.publishedDate).getTime() - new Date(a.publishedDate).getTime()
+  );
 }
