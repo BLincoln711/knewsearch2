@@ -3432,10 +3432,14 @@ Track your Share of Model, benchmark against competitors, and identify your bigg
   },
 ];
 
+import { newBlogPosts } from "./blog-posts-new";
+
+const allPosts = [...blogPosts, ...newBlogPosts];
+
 export function getBlogPost(slug: string): BlogPost | undefined {
-  return blogPosts.find(post => post.slug === slug);
+  return allPosts.find(post => post.slug === slug);
 }
 
 export function getAllBlogPosts(): BlogPost[] {
-  return blogPosts;
+  return allPosts;
 }
