@@ -109,7 +109,7 @@ USING (
     WHERE pc.total_prompts > 0  -- Only score brands with prompts run today
   ),
 
-  -- Get previous day score for change calculation
+  -- Get previous day score for change calculation (deduplicated)
   prev_scores AS (
     SELECT
       brand,
@@ -117,6 +117,7 @@ USING (
     FROM `@project_id.@dataset.visibility_scores`
     WHERE event_date = DATE_SUB(@target_date, INTERVAL 1 DAY)
       AND prompt_id IS NULL
+    QUALIFY ROW_NUMBER() OVER (PARTITION BY brand ORDER BY created_at DESC) = 1
   ),
 
   -- Final score computation
@@ -128,8 +129,8 @@ USING (
       cs.event_date,
       CAST(NULL AS STRING) AS prompt_id,  -- NULL indicates aggregate score
       CAST(NULL AS STRING) AS run_id,
-      -- Compute visibility score
-      ROUND(cs.mention_score + cs.citation_score - cs.volatility_penalty, 2) AS visibility_score,
+      -- Compute visibility score (clamped to 0-100)
+      ROUND(GREATEST(0, LEAST(100, cs.mention_score + cs.citation_score - cs.volatility_penalty)), 2) AS visibility_score,
       ROUND(cs.citation_score, 2) AS citation_score,
       ROUND(cs.mention_score, 2) AS mention_score,
       CAST(NULL AS FLOAT64) AS sentiment_score,  -- Not computed in this version
@@ -142,12 +143,12 @@ USING (
       ROUND(cs.avg_citation_position, 2) AS avg_citation_position,
       -- Change from previous day
       ROUND(
-        (cs.mention_score + cs.citation_score - cs.volatility_penalty) - COALESCE(ps.prev_visibility_score, 0),
+        GREATEST(0, LEAST(100, cs.mention_score + cs.citation_score - cs.volatility_penalty)) - COALESCE(ps.prev_visibility_score, 0),
         2
       ) AS score_change,
       ROUND(
         SAFE_DIVIDE(
-          (cs.mention_score + cs.citation_score - cs.volatility_penalty) - COALESCE(ps.prev_visibility_score, 0),
+          GREATEST(0, LEAST(100, cs.mention_score + cs.citation_score - cs.volatility_penalty)) - COALESCE(ps.prev_visibility_score, 0),
           NULLIF(ps.prev_visibility_score, 0)
         ) * 100,
         2

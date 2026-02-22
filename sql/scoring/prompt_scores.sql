@@ -76,7 +76,7 @@ USING (
     FROM prompt_answers a
   ),
 
-  -- Get previous day scores for change calculation
+  -- Get previous day scores for change calculation (deduplicated)
   prev_prompt_scores AS (
     SELECT
       prompt_id,
@@ -85,6 +85,7 @@ USING (
     FROM `@project_id.@dataset.visibility_scores`
     WHERE event_date = DATE_SUB(@target_date, INTERVAL 1 DAY)
       AND prompt_id IS NOT NULL
+    QUALIFY ROW_NUMBER() OVER (PARTITION BY brand, prompt_id ORDER BY created_at DESC) = 1
   ),
 
   -- Combine all metrics
@@ -123,8 +124,8 @@ USING (
       cps.event_date,
       cps.prompt_id,
       cps.run_id,
-      -- Compute visibility score
-      ROUND(cps.mention_score + cps.citation_score - cps.volatility_penalty, 2) AS visibility_score,
+      -- Compute visibility score (clamped to 0-100)
+      ROUND(GREATEST(0, LEAST(100, cps.mention_score + cps.citation_score - cps.volatility_penalty)), 2) AS visibility_score,
       ROUND(cps.citation_score, 2) AS citation_score,
       ROUND(cps.mention_score, 2) AS mention_score,
       CAST(NULL AS FLOAT64) AS sentiment_score,
@@ -137,12 +138,12 @@ USING (
       ROUND(cps.avg_citation_position, 2) AS avg_citation_position,
       -- Change from previous day
       ROUND(
-        (cps.mention_score + cps.citation_score - cps.volatility_penalty) - cps.prev_visibility_score,
+        GREATEST(0, LEAST(100, cps.mention_score + cps.citation_score - cps.volatility_penalty)) - cps.prev_visibility_score,
         2
       ) AS score_change,
       ROUND(
         SAFE_DIVIDE(
-          (cps.mention_score + cps.citation_score - cps.volatility_penalty) - cps.prev_visibility_score,
+          GREATEST(0, LEAST(100, cps.mention_score + cps.citation_score - cps.volatility_penalty)) - cps.prev_visibility_score,
           NULLIF(cps.prev_visibility_score, 0)
         ) * 100,
         2
@@ -159,6 +160,7 @@ USING (
   )
 
   SELECT * FROM final_scores
+  QUALIFY ROW_NUMBER() OVER (PARTITION BY brand, event_date, prompt_id ORDER BY visibility_score DESC) = 1
 ) AS source
 
 ON target.brand = source.brand
