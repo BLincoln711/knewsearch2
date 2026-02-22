@@ -36,7 +36,7 @@ export default function DataHealthPage() {
       ? authedFetch<OverviewResponse>("/overview", { brand: selectedBrand })
           .then((res) =>
             res.data.length > 0
-              ? res.data[res.data.length - 1].event_date
+              ? res.data[0].event_date
               : null
           )
           .catch(() => null)
