@@ -4,15 +4,12 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useBrand } from "./brand-context";
 import { useAuth } from "./auth-context";
-import { LogOut, User, Shield } from "lucide-react";
+import { LogOut, User, Shield, Settings } from "lucide-react";
 
 const links = [
-  { href: "/", label: "Overview" },
-  { href: "/prompt-scores", label: "Prompt Scores" },
-  { href: "/tracked-searches", label: "Tracked Searches" },
-  { href: "/weekly-summary", label: "Weekly Summary" },
-  { href: "/data-health", label: "Data Health" },
-  { href: "/billing", label: "Billing" },
+  { href: "/", label: "Visibility" },
+  { href: "/gaps", label: "Gaps" },
+  { href: "/reports", label: "Reports" },
 ];
 
 export function Nav() {
@@ -20,20 +17,25 @@ export function Nav() {
   const { brands, selectedBrand, setSelectedBrand, loading } = useBrand();
   const { user, signOut, isSuperadmin } = useAuth();
 
-  const isAuthPage = pathname.startsWith("/sign-in") || pathname.startsWith("/sign-up");
-  if (isAuthPage) return null;
+  const isAuthPage =
+    pathname.startsWith("/sign-in") || pathname.startsWith("/sign-up");
+  const isOnboarding = pathname.startsWith("/onboarding");
+  if (isAuthPage || isOnboarding) return null;
 
   return (
     <header className="glass-surface sticky top-0 z-50">
       <div className="section-container">
         <div className="flex h-16 items-center justify-between">
           <div className="flex items-center gap-10">
-            <span className="text-heading-sm text-charcoal tracking-tight">
+            <Link href="/" className="text-heading-sm text-charcoal tracking-tight">
               KnewSearch
-            </span>
+            </Link>
             <nav className="flex gap-1">
               {links.map((link) => {
-                const active = pathname === link.href;
+                const active =
+                  link.href === "/"
+                    ? pathname === "/"
+                    : pathname.startsWith(link.href);
                 return (
                   <Link
                     key={link.href}
@@ -51,7 +53,7 @@ export function Nav() {
             </nav>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             {!loading && brands.length > 0 && (
               <select
                 value={selectedBrand}
@@ -65,6 +67,18 @@ export function Nav() {
                 ))}
               </select>
             )}
+
+            <Link
+              href="/settings"
+              className={`rounded-lg p-2 transition-colors ${
+                pathname.startsWith("/settings")
+                  ? "bg-primary-50 text-primary-700"
+                  : "text-charcoal-muted hover:text-charcoal hover:bg-surface-100"
+              }`}
+              title="Settings"
+            >
+              <Settings className="h-4 w-4" />
+            </Link>
 
             {user && isSuperadmin && (
               <Link
@@ -81,7 +95,7 @@ export function Nav() {
             )}
 
             {user && (
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
                 <div className="flex items-center gap-2 rounded-lg bg-surface-50 px-3 py-1.5">
                   <User className="h-4 w-4 text-charcoal-muted" />
                   <span className="text-body-sm text-charcoal-light">
